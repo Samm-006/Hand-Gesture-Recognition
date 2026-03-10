@@ -108,7 +108,6 @@ tenacity==9.1.2
 tensorboard==2.16.2
 tensorboard-data-server==0.7.2
 tensorflow==2.16.2
-tensorflow-macos==2.16.2
 termcolor==3.3.0
 tf_keras==2.16.0
 threadpoolctl==3.6.0
