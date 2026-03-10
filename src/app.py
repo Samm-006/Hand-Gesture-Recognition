@@ -162,13 +162,13 @@ def tts_bytes(text: str) -> bytes:
     tts.write_to_fp(buf)
     return buf.getvalue()
 
-"""
-VideoProcessor -> Processes each webcam frames:
-1- Detect hands using MediaPipe
-2- Extract hand landmarks
-3- Preprocess
-4- Predict the gestures using the trained TensorFlow model
-"""
+
+# VideoProcessor -> Processes each webcam frames:
+# 1- Detect hands using MediaPipe
+# 2- Extract hand landmarks
+# 3- Preprocess
+# 4- Predict the gestures using the trained TensorFlow model
+
 class VideoProcessor:
     def __init__(self, task_path, model, labels, min_conf=0.60, smooth_window=8, max_low_frames=10):
         self.model = model
