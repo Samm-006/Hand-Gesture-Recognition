@@ -55,7 +55,7 @@ MarkupSafe==3.0.3
 matplotlib==3.10.8
 matplotlib-inline==0.2.1
 mdurl==0.1.2
-mediapipe==0.10.31
+mediapipe==0.10.21
 ml-dtypes==0.3.2
 namex==0.1.0
 narwhals==2.15.0
