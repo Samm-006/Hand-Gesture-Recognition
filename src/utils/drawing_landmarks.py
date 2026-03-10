@@ -1,6 +1,6 @@
 import numpy as np
 
-from mediapipe import solutions
+import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
 
 def draw_landmarks_on_image(rgb_image, detection_result):
@@ -22,16 +22,16 @@ def draw_landmarks_on_image(rgb_image, detection_result):
       landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks
     ])
     # Draw landmarks and connections between them
-    solutions.drawing_utils.draw_landmarks(
+    mp.solutions.drawing_utils.draw_landmarks(
       annotated_image,
       hand_landmarks_proto,
-      solutions.hands.HAND_CONNECTIONS,
-      solutions.drawing_utils.DrawingSpec(
+      mp.solutions.hands.HAND_CONNECTIONS,
+      mp.solutions.drawing_utils.DrawingSpec(
         color=(255, 0, 0),  # landmarks colour
         thickness=2,
         circle_radius=3
       ),
-      solutions.drawing_utils.DrawingSpec(
+      mp.solutions.drawing_utils.DrawingSpec(
         color=(0, 255, 0),  # connections colour
         thickness=2)
       )
