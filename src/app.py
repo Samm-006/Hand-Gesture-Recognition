@@ -27,7 +27,13 @@ st.set_page_config(
 )
 # WebRTC configuration to connect to webcam stream
 RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    {
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun2.l.google.com:19302"]}
+        ]
+    }
 )
 # App Styling (visual layout + appearance)
 st.markdown(
@@ -346,6 +352,11 @@ def main():
             mode=WebRtcMode.SENDRECV,
             rtc_configuration=RTC_CONFIGURATION,
             media_stream_constraints={"video": True, "audio": False},
+            video_html_attrs={
+                "autoPlay": True,
+                "controls": False,
+                "muted": True
+            },
             video_processor_factory=lambda: VideoProcessor(
                 task_path=task_path,
                 model=model,
