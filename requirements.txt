@@ -8,8 +8,6 @@ opencv-python-headless==4.11.0.86
 numpy==1.26.4
 pandas==2.3.3
 pillow==12.1.0
-tensorflow==2.16.2
-keras==3.13.1
 scikit-learn==1.8.0
 gTTS==2.5.4
 av==16.1.0
