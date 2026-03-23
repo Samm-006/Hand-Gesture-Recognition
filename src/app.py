@@ -27,13 +27,7 @@ st.set_page_config(
 )
 # WebRTC configuration to connect to webcam stream
 RTC_CONFIGURATION = RTCConfiguration(
-    {
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-            {"urls": ["stun:stun2.l.google.com:19302"]}
-        ]
-    }
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 # App Styling (visual layout + appearance)
 st.markdown(
@@ -96,6 +90,16 @@ st.markdown(
         border-radius: 12px !important;
         border: 1px solid rgba(255,255,255,0.14) !important;
         background: rgba(255,255,255,0.06) !important;
+        width: 100%;
+      }
+      
+      .history-item {
+       padding: 6px 10px;
+       border-radius: 8px;
+       background: rgba(255,255,255,0.06);
+       margin-bottom: 4px;
+       font-size: 0.9rem;
+       color: #EDEFF3;
       }
     </style>
     """,
@@ -119,6 +123,13 @@ EMERGENCY_PHRASES = {
     "Yes": "Yes",
     "No": "No"
 }
+
+# Gesture List for user interface
+GESTURE_REFERENCE = [
+    "I", "Need", "Accident", "Fire", "Yes",
+    "No", "Ambulance", "Doctor", "Police", "Fireman",
+    "Hurt", "Emergency", "Short of breath", "Help", "Stop"
+]
 
 # MediaPipe Hand Landmarker Configuration
 BaseOptions = mp.tasks.BaseOptions
@@ -197,6 +208,8 @@ class VideoProcessor:
         self.latest_conf = 0.0
         self.latest_status = "No hand detected"
 
+        self.latest_conf_raw = 0.0     # Track confidence for progress bar
+        self.latest_has_hand = False   # Track if hand is detected or not
         self._result_lock = threading.Lock()
         self._latest_result = None
 
@@ -253,6 +266,7 @@ class VideoProcessor:
         phrase = ""
         status = "No hand detected"
         shown_conf = 0.0
+        raw_conf = 0.0
 
         # To check if there is hands
         if has_hand:
@@ -260,6 +274,7 @@ class VideoProcessor:
             probs = self.model.predict(x, verbose=0)[0]
             pred_id = int(np.argmax(probs))
             confidence = float(np.max(probs))
+            raw_conf = confidence
 
             # if confidence is >0.6 then give translation of SL of the given hand gesture
             if confidence >= self.min_conf:
@@ -296,6 +311,8 @@ class VideoProcessor:
             self.latest_phrase = phrase
             self.latest_conf = shown_conf
             self.latest_status = status
+            self.latest_conf_raw = raw_conf
+            self.latest_has_hand = has_hand
 
         # Draw
         annotated_rgb = draw_landmarks_on_image(frame_rgb, result)
@@ -334,6 +351,9 @@ def main():
     if "last_phrase" not in st.session_state:
         st.session_state.last_phrase = ""
 
+    if "phrase_history" not in st.session_state:
+        st.session_state.phrase_history = []
+
     # Left Column-> the camera
     with left_col:
         st.markdown(
@@ -352,11 +372,6 @@ def main():
             mode=WebRtcMode.SENDRECV,
             rtc_configuration=RTC_CONFIGURATION,
             media_stream_constraints={"video": True, "audio": False},
-            video_html_attrs={
-                "autoPlay": True,
-                "controls": False,
-                "muted": True
-            },
             video_processor_factory=lambda: VideoProcessor(
                 task_path=task_path,
                 model=model,
@@ -367,6 +382,15 @@ def main():
             ),
             async_processing=True,
         )
+
+        # Gestures classes list
+        with st.expander("View all 15 supported gestures"):
+            cols = st.columns(3)
+            for i, word in enumerate(GESTURE_REFERENCE):
+                cols[i % 3].markdown(
+                    f"<div class='history-item'>{word}</div>",
+                    unsafe_allow_html=True
+                )
 
     # Right Column -> Translation output and audio
     with right_col:
@@ -382,6 +406,11 @@ def main():
 
         panel = st.empty()
         audio_placeholder = st.empty()
+        speak_placeholder = st.empty()
+        conf_label_placeholder = st.empty()
+        conf_bar_placeholder = st.empty()
+        history_panel = st.empty()
+        clear_placeholder = st.empty()
 
         if not (webrtc_ctx and webrtc_ctx.state.playing):
             panel.markdown(
@@ -392,20 +421,22 @@ def main():
                 """,
                 unsafe_allow_html=True
             )
-        else:
-            # Create button for audio translation
-            speak_col, _ = st.columns([0.28, 0.72])
-            with speak_col:
-                st.markdown('<div class="icon-btn">', unsafe_allow_html=True)
-                # Butoon to generate speech output
-                speak_clicked = st.button(
-                        "Translator Audio",
-                        key="speak_btn",
-                        help="Press to get audio sound translation"
-                )
-                st.markdown('</div>', unsafe_allow_html=True)
 
-        if webrtc_ctx and webrtc_ctx.state.playing:
+        if webrtc_ctx and  webrtc_ctx.state.playing:
+
+            with speak_placeholder:
+                speak_clicked = st.button(
+                    "Translator Audio",
+                    key="speak_btn",
+                    help="Press to get audio on the last detect phrase",
+                    use_container_width = True
+                )
+
+            with clear_placeholder:
+                if st.button("Clear history", key="clear_btn", use_container_width=True):
+                    st.session_state.phrase_history = []
+                    st.session_state.last_phrase = ""
+
             while webrtc_ctx.state.playing:
                 # Get latest prediction results from VideoProcessor
                 vp = webrtc_ctx.video_processor
@@ -416,17 +447,24 @@ def main():
                         label = vp.latest_label
                         conf = vp.latest_conf
                         status = vp.latest_status
+                        conf_raw = vp.latest_conf_raw
+                        has_hand = vp.latest_has_hand
                 else:
-                    phrase, label, conf, status = "", "", 0.0, "Starting..."
+                    phrase, label, conf, conf_raw, has_hand, status = "", "", 0.0, 0.0, False, "Starting..."
 
                 # Save last valid phrase (so Speak can work even if next frame becomes blank)
                 if phrase:
                     st.session_state.last_phrase = phrase
+                    # Append phrase history
+                    history = st.session_state.phrase_history
+                    if not history or history[-1] != phrase:
+                        history.append(phrase)
+                        if len(history) > 5:
+                            history.pop(0)
+                        st.session_state.phrase_history = history
 
                 phrase_show = phrase if phrase else "—"
                 label_show = label if label else "—"
-                # If label is empty, don’t show a fake confidence value
-                conf_show = f"{conf:.2f}" if label else "—"
 
                 # Display prediction results
                 panel.markdown(
@@ -444,24 +482,57 @@ def main():
 
                       <div class="muted">Detected label</div>
                       <div style="font-size: 1.00rem; font-weight: 650;">{label_show}</div>
-
-                      <div class="muted" style="margin-top:8px;">Confidence:{conf_show}</div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-                # If Speak clicked, play LAST saved phrase
+                # Show for all confidence values including detected cong values under 60
+                if has_hand and conf_raw > 0:
+                    conf_label_placeholder.markdown(
+                        f"<div class='muted' style='margin-bottom:4px;'>Confidence: {conf_raw*100:.0f}%</div>",
+                        unsafe_allow_html=True
+                    )
+                    conf_bar_placeholder.progress(min(conf_raw, 1.0))
+                else:
+                    conf_label_placeholder.empty()
+                    conf_bar_placeholder.empty()
+
+                if st.session_state.phrase_history:
+                    history_items = "".join(
+                        f"<div class='history-item'> {p}</div>"
+                        for p in reversed(st.session_state.phrase_history)
+                    )
+                    history_panel.markdown(
+                        f"""
+                        <div class="card">
+                          <div class="muted">Recent phrase</div>
+                          <div style="margin-top:8px;">{history_items}</div>
+                          <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+                          <span class="muted" style="font-size:0.82rem;">Press "Clear history" below to reset</span>
+                          </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                # If Speak clicked, play LAST saved phrase (TTS)
                 if speak_clicked:
-                    if st.session_state.last_phrase:
+                    last = st.session_state.last_phrase
+                    already_spoken = st.session_state.get("_last_spoken", "")
+                    if last and last != already_spoken:
+                        st.session_state._last_spoken = last
                         try:
-                            mp3 = tts_bytes(st.session_state.last_phrase)
+                            mp3 = tts_bytes(last)
                             audio_placeholder.audio(mp3, format="audio/mp3")
                         except Exception as e:
                             st.error(f"TTS failed: {e}")
-                    else:
-                        st.warning("No phrase to speak yet.")
-
+                    elif not last:
+                        if not st.session_state.get("_warned", False):
+                            st.warning("No gesture detected yet to speak.")
+                            st.session_state._warned = True
+                else:
+                    st.session_state._warned = False
                 time.sleep(0.1)
 
         st.write("")
