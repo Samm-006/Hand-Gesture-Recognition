@@ -71,7 +71,7 @@ Hand-Gesture-Recognition/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+git clone https://github.com/Samm-006/Hand-Gesture-Recognition.git
 ```
 
 ### 2. Create a virtual environment
